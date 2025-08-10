@@ -24,6 +24,7 @@ The following modules are available for this project:
 
 - Embedded Generic container for DYI containers - [DEMO](../demo/generic-container/README.md)
 - [WireMock for API Mocking](./wiremock/README.md)
+- [Git](./git/README.md)
 
 ## Using Modules
 
