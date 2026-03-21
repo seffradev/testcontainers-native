@@ -1,6 +1,6 @@
-#include <testcontainers-bridge.h>
-
 #include "testcontainers-c/container.h"
+
+#include <bridge.h>
 
 int tc_container_create(const char* image) {
     if (image == NULL) {

@@ -5,8 +5,6 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
-#include <iterator>
-#include <memory>
 #include <optional>
 #include <ranges>
 #include <stdexcept>
@@ -15,13 +13,13 @@
 #include <utility>
 #include <variant>
 
-namespace testcontainers {
-
 namespace {
 extern "C" {
 #include "testcontainers-c/container.h"
 }
 }
+
+namespace testcontainers {
 
 struct TcpPort {
     uint16_t underlying;
@@ -33,9 +31,8 @@ enum struct HttpMethod {
     Head,
 };
 
-class Builder;
-
-auto materialize(const auto& in) {
+template <std::size_t size>
+auto materialize(const std::array<char, size>& in) -> std::string {
 #if __cplusplus >= 202300L
     return std::ranges::to<std::string>(in | std::ranges::views::filter([](char c) { return c != 0x00; }));
 #else
@@ -78,7 +75,8 @@ public:
     /// Send an HTTP request, type denoted by `method`, to the
     /// container. Perform the request on port `port` and to
     /// endpoint `endpoint`.
-    std::pair<int, std::string> send_http(HttpMethod method, TcpPort port, const std::filesystem::path& endpoint) {
+    auto send_http(HttpMethod method, TcpPort port, const std::filesystem::path& endpoint)
+        -> std::pair<int, std::string> {
         switch (method) {
             case HttpMethod::Get:
                 return send_http_get(port, endpoint);
@@ -111,9 +109,9 @@ private:
     struct Awaiter {
         explicit constexpr Awaiter(int container_id) : container_id(container_id) {}
 
-        void operator()(const Configuration::Timeout& timeout) { std::this_thread::sleep_for(timeout); }
+        auto operator()(const Configuration::Timeout& timeout) -> void { std::this_thread::sleep_for(timeout); }
 
-        void operator()(const Configuration::Http& http) {
+        auto operator()(const Configuration::Http& http) -> void {
             const auto& [port, endpoint] = http;
             tc_container_with_wait_for_http(container_id, port.underlying, endpoint.c_str());
         }
@@ -144,9 +142,10 @@ private:
         }
     }
 
-    /// Send an HTTP GET request to the container, on port `port`
+    /// Send an HTTP GET-request to the container, on port `port`
     /// and with endpoint `endpoint`.
-    constexpr std::pair<int, std::string> send_http_get(TcpPort port, const std::filesystem::path& endpoint) const {
+    constexpr auto send_http_get(TcpPort port, const std::filesystem::path& endpoint) const
+        -> std::pair<int, std::string> {
         static constexpr size_t response_size     = 0xFFFF;
         static constexpr size_t error_size        = 0xFFFF;
         auto                    response_body_raw = std::array<char, response_size>{0x00};
@@ -167,44 +166,44 @@ private:
     int container_id;
 
 public:
-    /// `Builder` is the mechanism to instantiate `Container`s. It
+    /// `Builder` is the mechanism to instantiate a `Container`. It
     /// serves to configure the setup, and provides an interface to
-    /// simply check for errors upon container creation.
+    /// check for errors on container creation.
     class Builder {
     public:
-        constexpr Builder(const std::string& image)
+        explicit constexpr Builder(const std::string& image)
             : configuration(Container::Configuration{.request_id = tc_container_create(image.c_str())}) {}
 
         /// Add a file from host `source` to container path
         /// `destination`.
-        Builder with_file(std::filesystem::path source, std::filesystem::path destination) {
+        auto with_file(std::filesystem::path source, std::filesystem::path destination) -> Builder {
             tc_container_with_file(configuration.request_id, source.c_str(), destination.c_str());
             return *this;
         }
 
         /// Expose a TCP port out from the container.
-        Builder expose_port(TcpPort port) {
+        auto expose_port(TcpPort port) -> Builder {
             tc_container_with_exposed_tcp_port(configuration.request_id, port.underlying);
             return *this;
         }
 
         /// Add a timeout duration that's waited-for during
         /// container startup.
-        Builder wait_for(std::chrono::milliseconds duration) {
+        auto wait_for(std::chrono::milliseconds duration) -> Builder {
             configuration.wait_for_start = duration;
             return *this;
         }
 
         /// Add an endpoint to act as health-check, determining if
         /// the container is ready for requests.
-        Builder wait_for_http(TcpPort port, std::filesystem::path endpoint) {
+        auto wait_for_http(TcpPort port, std::filesystem::path endpoint) -> Builder {
             configuration.wait_for_start = std::pair{port, endpoint};
             return *this;
         }
 
         /// Construct a `Container` instance with the configured
         /// options.
-        std::optional<Container> build() {
+        auto build() -> std::optional<Container> {
             try {
                 return std::make_optional(Container{configuration});
             } catch (const std::runtime_error& exception) {
@@ -219,4 +218,4 @@ public:
 
 }
 
-#endif  // !TESTCONTAINERS_HPP
+#endif
